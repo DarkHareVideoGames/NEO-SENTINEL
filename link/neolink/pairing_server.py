@@ -33,7 +33,7 @@ class PairingServer:
     def __init__(self, config: LinkConfig, store: CredentialStore, host: str, port: int) -> None:
         self.config = config
         self.store = store
-        self.identity = build_identity(config.name)
+        self.identity = build_identity(config.name, store.node_id())
         self._host = host
         self._port = port
         self._manager = PairingManager()
@@ -102,7 +102,7 @@ class PairingServer:
                     return
 
                 credential = new_credential()
-                outer.store.add(credential, outer.identity.name)
+                outer.store.add(credential, outer.identity.node_id)
                 outer.paired = True
 
                 # A credencial vai no corpo da resposta — nunca na URL.

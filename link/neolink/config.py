@@ -90,7 +90,7 @@ class ServiceConfig:
 class LinkConfig:
     """Configuração completa do LINK."""
 
-    name: str
+    name: str | None
     server: ServerConfig
     services: list[ServiceConfig]
 
@@ -109,9 +109,8 @@ class LinkConfig:
     @classmethod
     def from_dict(cls, raw: dict[str, Any]) -> "LinkConfig":
         node = raw.get("node") or {}
-        name = str(node.get("name") or "").strip()
-        if not name:
-            raise ValueError("config.json: 'node.name' é obrigatório (ex.: MASTER)")
+        # O `name` é opcional: sem ele, o LINK usa o hostname real da máquina.
+        name = str(node.get("name") or "").strip() or None
 
         server_raw = raw.get("server") or {}
         server = ServerConfig(

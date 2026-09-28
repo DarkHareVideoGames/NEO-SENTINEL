@@ -34,6 +34,9 @@ class NodeSnapshot:
     online: bool = False
     error: str | None = None
 
+    # Identidade canónica, fornecida pelo LINK. O SENTINEL não a descobre
+    # remotamente de nenhuma outra forma.
+    node_id: str | None = None
     hostname: str | None = None
     platform: str | None = None
     agent: str | None = None
@@ -140,6 +143,9 @@ class LinkClient:
 
         snapshot.online = True
         node = status.get("node") or {}
+        # Identidade canónica: o LINK é a fonte da verdade.
+        snapshot.node_id = node.get("node_id")
+        snapshot.name = str(node.get("name") or snapshot.name)
         snapshot.hostname = node.get("hostname")
         snapshot.platform = node.get("platform")
         snapshot.agent = status.get("agent") or node.get("agent")

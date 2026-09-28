@@ -1,7 +1,17 @@
-"""Identidade do node: quem é esta máquina.
+"""Identidade canónica do node: quem é esta máquina.
 
-A identidade principal é o NOME configurado (ex.: MASTER), nunca o IP.
-O IP é apenas informação de contacto, não identidade.
+Três campos com papéis distintos:
+
+  node_id   identidade técnica, única e estável. Gerada uma vez com `secrets`
+            e persistida pelo LINK. Não depende do hostname, não muda quando o
+            hostname muda e não muda quando o `name` é alterado.
+
+  name      nome lógico e amigável. Configurável pelo utilizador. Sem nome
+            configurado, usa o hostname real da máquina.
+
+  hostname  hostname real, sempre obtido do sistema operativo.
+
+O IP é apenas informação de contacto — nunca identidade.
 """
 
 from __future__ import annotations
@@ -18,8 +28,19 @@ from . import AGENT_NAME, __version__
 
 @dataclass(frozen=True)
 class NodeIdentity:
-    """Identidade do node, tal como o SENTINEL a vê."""
+    """Identidade canónica do node, tal como o SENTINEL a vê.
 
+    Três campos distintos, com papéis diferentes:
+
+    - `node_id`  identidade técnica, estável e persistente. Gerada uma vez e
+                 guardada; não depende do hostname nem do `name`, e não muda
+                 quando o utilizador renomeia o node.
+    - `name`     nome lógico/amigável. Configurável; sem configuração usa o
+                 hostname real da máquina.
+    - `hostname` hostname real da máquina, sempre descoberto pelo sistema.
+    """
+
+    node_id: str
     name: str
     hostname: str
     platform: str
@@ -75,11 +96,36 @@ def tailscale_ip() -> str | None:
     return None
 
 
-def build_identity(name: str) -> NodeIdentity:
-    """Constrói a identidade a partir do nome configurado e do sistema local."""
+def hostname() -> str:
+    """Hostname real da máquina, sempre descoberto pelo sistema.
+
+    'desconhecido' apenas em sistemas onde o hostname não é legível.
+    """
+    return platform.node() or "desconhecido"
+
+
+def logical_name(configured: str | None) -> str:
+    """Nome lógico do node.
+
+    Usa o nome configurado; sem ele, o hostname real da máquina. Assim uma
+    instalação nova mostra logo o hostname, sem exigir configuração.
+    """
+    if configured and configured.strip():
+        return configured.strip()
+    return hostname()
+
+
+def build_identity(name: str | None, node_id: str) -> NodeIdentity:
+    """Constrói a identidade canónica.
+
+    `name` pode ser None: nesse caso o hostname é usado. `node_id` vem de
+    fora (ver `CredentialStore.node_id()`) para ser persistente entre
+    reinícios do LINK.
+    """
     return NodeIdentity(
-        name=name,
-        hostname=platform.node() or "desconhecido",
+        node_id=node_id,
+        name=logical_name(name),
+        hostname=hostname(),
         platform=detect_platform(),
         agent=AGENT_NAME,
         version=__version__,

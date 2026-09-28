@@ -161,12 +161,26 @@ class CredentialStore:
 
     path: Path
     _hashes: dict[str, dict] = field(default_factory=dict)
+    _node_id: str | None = None
 
     @classmethod
     def load(cls, path: Path | str) -> "CredentialStore":
         store = cls(path=Path(path))
         store._read()
         return store
+
+    def node_id(self) -> str:
+        """Identidade técnica do node, gerada uma vez e persistente.
+
+        É criada com `secrets` na primeira execução e guardada no mesmo
+        ficheiro das credenciais. Como é gerada aleatoriamente, não depende do
+        hostname nem do `name`, e sobrevive a reinícios e a renomeações.
+        """
+        if self._node_id:
+            return self._node_id
+        self._node_id = f"nx1-{secrets.token_hex(8)}"
+        self._save()
+        return self._node_id
 
     def _read(self) -> None:
         try:
@@ -180,11 +194,16 @@ class CredentialStore:
             for item in entries
             if isinstance(item, dict) and item.get("hash")
         }
+        node_id = raw.get("node_id")
+        self._node_id = node_id if isinstance(node_id, str) and node_id else None
 
-    def _write(self) -> None:
+    def _save(self) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        payload = {"credentials": list(self._hashes.values())}
-        # Sem segredo em claro — só hashes e metadados.
+        payload = {
+            "node_id": self._node_id,
+            "credentials": list(self._hashes.values()),
+        }
+        # Sem segredo em claro — só hashes, metadados e a identidade técnica.
         self.path.write_text(
             json.dumps(payload, indent=2, ensure_ascii=False) + "\n",
             encoding="utf-8",
@@ -194,15 +213,23 @@ class CredentialStore:
         except OSError:  # pragma: no cover - depende do sistema de ficheiros
             pass
 
+    def _write(self) -> None:
+        self._save()
+
     def add(self, credential: str, node: str) -> str:
-        """Registra uma credencial. Devolve o hash (nunca a credencial)."""
+        """Regist uma credencial associada ao `node_id` do node.
+
+        A associação é feita pela identidade técnica, não pelo nome — assim
+        renomear o node não quebra a ligação da credencial.
+        """
         digest = hash_credential(credential)
         self._hashes[digest] = {
             "hash": digest,
+            "node_id": self.node_id(),
             "node": node,
             "created_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         }
-        self._write()
+        self._save()
         return digest
 
     def verify(self, credential: str) -> bool:

@@ -50,9 +50,10 @@ class TestConfig(unittest.TestCase):
         self.assertEqual(len(config.services), 2)
         self.assertFalse(config.server.allow_control)  # seguro por omissão
 
-    def test_name_is_required(self):
-        with self.assertRaises(ValueError):
-            LinkConfig.from_dict({"node": {}})
+    def test_name_is_optional(self):
+        """Sem `node.name`, o LINK usa o hostname real da máquina."""
+        config = LinkConfig.from_dict({"node": {}, "server": {}, "services": []})
+        self.assertIsNone(config.name)
 
     def test_unknown_service_type_rejected(self):
         with self.assertRaises(ValueError):
@@ -108,15 +109,15 @@ class TestConfig(unittest.TestCase):
 
 class TestIdentity(unittest.TestCase):
     def test_identity_uses_configured_name_not_ip(self):
-        identity = build_identity("MASTER")
-        self.assertEqual(identity.name, "MASTER")
+        identity = build_identity("CONFIGURADO", "nx1-estavel")
+        self.assertEqual(identity.name, "CONFIGURADO")
         self.assertEqual(identity.agent, "NEO//LINK")
         self.assertTrue(identity.hostname)
         self.assertIn(identity.platform, ("windows", "linux", "macos", "android"))
 
     def test_identity_is_serialisable(self):
-        payload = build_identity("FEEDBACKAI").to_dict()
-        self.assertEqual(payload["name"], "FEEDBACKAI")
+        payload = build_identity("UM-NOME", "nx1-estavel").to_dict()
+        self.assertEqual(payload["name"], "UM-NOME")
         json.dumps(payload)  # tem de ser serializável para a API
 
     def test_detect_platform_returns_known_value(self):
@@ -273,6 +274,26 @@ class TestProtocol(unittest.TestCase):
 
     def test_control_disabled_by_default(self):
         self.assertFalse(self.config.server.allow_control)
+
+
+class TestIdentityCanonical(unittest.TestCase):
+    """A identidade canónica: node_id, name e hostname.
+
+    A cobertura completa está em test_identity.py.
+    """
+
+    def test_identity_exposes_three_canonical_fields(self):
+        identity = build_identity("UM-NOME", "nx1-teste")
+        payload = identity.to_dict()
+        for field in ("node_id", "name", "hostname"):
+            self.assertIn(field, payload)
+            self.assertTrue(payload[field])
+
+    def test_renaming_keeps_node_id(self):
+        before = build_identity("ANTIGO", "nx1-estavel")
+        after = build_identity("NOVO", "nx1-estavel")
+        self.assertNotEqual(before.name, after.name)
+        self.assertEqual(before.node_id, after.node_id)
 
 
 if __name__ == "__main__":

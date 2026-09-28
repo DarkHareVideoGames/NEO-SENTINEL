@@ -52,7 +52,9 @@ class LinkService:
         self.config = config
         self.services = services
         self.store = store
-        self.identity = build_identity(config.name)
+        # A identidade canónica: node_id persistente + name + hostname.
+        node_id = store.node_id() if store is not None else ""
+        self.identity = build_identity(config.name, node_id)
 
     def find_service(self, name: str) -> Service | None:
         """Serviço por nome (case-insensitive)."""
