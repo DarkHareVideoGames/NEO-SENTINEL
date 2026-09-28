@@ -11,7 +11,7 @@
 #      curl -fsSL https://raw.githubusercontent.com/DarkHareVideoGames/NEO-SENTINEL/main/install.sh | bash
 #
 #  Opções:
-#      --url URL          endereço do LINK (ex.: http://100.69.16.82:8765)
+#      --url URL          endereço do LINK (ex.: http://master:8765)
 #      --name NOME        nome do node no SENTINEL (ex.: MASTER)
 #      --token SEGREDO    token partilhado com o LINK
 #      --check            diagnostico da instalacao

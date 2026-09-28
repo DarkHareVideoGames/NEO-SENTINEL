@@ -1,0 +1,5 @@
+# NEO//LINK — dependências
+# Servidor HTTP: biblioteca standard (http.server) — sem dependências web.
+# GPU NVIDIA: nvidia-smi vem com o driver, não é pacote Python.
+
+psutil>=5.9

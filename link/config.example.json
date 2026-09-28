@@ -1,0 +1,32 @@
+{
+  "node": {
+    "name": "NODE-01"
+  },
+  "server": {
+    "host": "127.0.0.1",
+    "port": 8765,
+    "allow_control": false,
+    "token": null
+  },
+  "services": [
+    {
+      "type": "comfyui",
+      "name": "ComfyUI",
+      "enabled": true,
+      "path": "C:\\ComfyUI",
+      "python": "C:\\ComfyUI\\.venv\\Scripts\\python.exe",
+      "port": 8188,
+      "api_path": "/system_stats",
+      "process_match": ["C:\\ComfyUI"],
+      "args": ["--enable-manager", "--listen", "0.0.0.0"]
+    },
+    {
+      "type": "ollama",
+      "name": "Ollama",
+      "enabled": true,
+      "port": 11434,
+      "api_path": "/api/tags",
+      "process_match": ["ollama", "serve"]
+    }
+  ]
+}

@@ -1,185 +1,141 @@
 # NEO//SENTINEL
 
-Cliente TUI de monitorização para a tailnet NEO X1.
+Criei o NEO//SENTINEL para ter uma forma simples de acompanhar as máquinas
+que fazem parte da minha infraestrutura, sem precisar de abrir uma página web
+nem de estar sentado ao pé de cada máquina.
 
-Observa e apresenta. Não conhece o interior das máquinas — todos os dados
-chegam pela API do **NEO//LINK**, o agente local que corre em cada node.
+É um cliente de linha de comando. Corre num telemóvel com Termux, num portátil
+com Linux, ou num PC com Windows, e mostra o estado de cada node num ecrã só.
+
+Este repositório tem as duas peças do sistema:
+
+| Componente | Onde corre | O que faz |
+|---|---|---|
+| [NEO//SENTINEL](sentinel/) | onde observo | o cliente, com a interface |
+| [NEO//LINK](link/) | em cada node | o agente que conhece a máquina |
+
+## O problema que resolve
+
+Cada máquina tem uma configuração diferente — caminhos, processos, portas. Não
+queria que o cliente tivesse de conhecer esses detalhes, nem ter de o mudar de
+cada vez que uma máquina muda.
+
+Por isso separei as duas peças. O SENTINEL pergunta; o LINK responde com dados
+estruturados. É isso que permite ao mesmo cliente mostrar um PC Windows com GPU
+NVIDIA e um servidor Linux sem GPU nenhuma, sem qualquer alteração.
 
 ```
-     NEO//SENTINEL   (Termux / Linux / Windows / macOS)
-            │
-         Tailscale
-            │
-            ▼
-        NEO//LINK  ──►  hardware, RAM, GPU, discos, serviços
+        NEO//SENTINEL
+              │
+           Tailscale
+              │
+      ┌───────┼───────┐
+      ▼       ▼       ▼
+     LINK    LINK    LINK
+      │
+   hardware, GPU,
+   discos, serviços
 ```
 
-## Requisitos
+Nada é inventado do lado do cliente: o que aparece no ecrã é o que o LINK
+reportou. Se um dado não vier, aparece `N/A`.
 
-- Python 3.9+
-- `bash` e `curl` (ou `wget`)
-- No Android: [Termux](https://f-droid.org/packages/com.termux/) da F-Droid
-  (a versão da Play Store está desatualizada)
-- A app Tailscale ligada, para alcançar o node
+## O que consigo monitorizar
+
+Confirmado no código, o que a interface mostra hoje:
+
+- **Identidade do node** — nome, hostname, sistema operativo, versão do agente
+- **CPU** — percentagem de utilização e número de cores
+- **RAM** — percentagem e total
+- **GPU** — modelo, utilização, temperatura, VRAM
+- **Discos** — percentagem usada em cada volume
+- **Serviços** — estado de cada serviço configurado no node, e se a API
+  responde
+
+Os serviços são configurados no LINK, não no SENTINEL. É por isso que o
+ComfyUI e o Ollama aparecem no meu setup, mas o sistema não assume que esses
+são os serviços de ninguém.
 
 ## Instalar
 
-Um comando:
+### O SENTINEL (a máquina de onde observo)
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/DarkHareVideoGames/NEO-SENTINEL/main/install.sh | bash
 ```
 
 Instala em `~/.neo-x1/sentinel/` e cria o comando `neo-sentinel`.
-Não precisa de `git`, Docker, VS Code, root, nem do código do LINK.
 
-Depois, **reabra o Termux** (para o `PATH` carregar) e confirme:
-
-```bash
-neo-sentinel --check
-```
-
-## Executar
+### O LINK (cada node a monitorizar)
 
 ```bash
-neo-sentinel
+curl -fsSL https://raw.githubusercontent.com/DarkHareVideoGames/NEO-SENTINEL/main/link/install.sh | bash -- --name MEU-NODE
 ```
 
-| Tecla | Acção |
-|---|---|
-| `↑` / `↓` | node anterior / seguinte |
-| `r` | refresh |
-| `q` | sair |
+Instala em `~/.neo-x1/link/` e cria o comando `neo-link`. Depois é preciso
+descrever os serviços dessa máquina no `config.json`.
 
-## Adicionar um node
+Nenhum dos dois precisa de `git`, de Docker, ou de root. E não precisam um do
+outro para instalar — o SENTINEL nunca vê o código do LINK.
 
-### Opção 1 — pairing (recomendado)
-
-Sem copiar tokens à mão. No node remoto:
+## Primeiros passos
 
 ```bash
-python neo_link.py --pair
+# no node que quero monitorizar
+neo-link --pair --host 0.0.0.0     # mostra um código temporário
+
+# na máquina de onde observo
+neo-sentinel --pair                # introduzo a URL e o código
+neo-sentinel --check               # confirmo que está tudo a responder
+neo-sentinel                       # abro a interface
 ```
 
-Mostra um código temporário (ex.: `7K4M-92PX`, válido 10 minutos). No
-SENTINEL:
+Na interface, `↑` e `↓` mudam de node, `r` força uma actualização, `q` sai.
 
-```bash
-neo-sentinel --pair
-```
+## Pairing
 
-O SENTINEL pede o URL e o código, valida, e guarda a credencial sozinho.
+Não gosto de pedir a alguém — nem a mim próprio — que copie tokens de um ecrã
+para o outro. Por isso o pairing é a forma normal de adicionar um node.
 
-### Opção 2 — configuração manual
+1. Inicio o pairing no LINK.
+2. O LINK mostra um código curto e temporário.
+3. Introduzo esse código no SENTINEL.
+4. O LINK valida o código e devolve uma credencial.
+5. O SENTINEL guarda a credencial e o node passa a estar disponível.
 
-```bash
-nano ~/.neo-x1/sentinel/config.json
-```
+O código tem uma validade curta e só serve uma vez. A credencial que fica
+guardada é o que permite as consultas seguintes.
 
-```json
-{
-  "refresh_seconds": 2.0,
-  "timeout_seconds": 8.0,
-  "nodes": [
-    {
-      "name": "MASTER",
-      "url": "http://100.69.16.82:8765",
-      "token": "a-credencial",
-      "enabled": true
-    }
-  ]
-}
-```
+## Requisitos
 
-- `name` — como o node aparece na TUI
-- `url` — endereço do LINK. Prefira o **MagicDNS** do Tailscale
-  (`http://master:8765`) a um IP, que pode mudar
+- Python 3.9 ou superior
+- Termux, no Android ([F-Droid](https://f-droid.org/packages/com.termux/))
+- Acesso de rede aos nodes, tipicamente através de uma tailnet Tailscale
 
-## Comandos
-
-```bash
-neo-sentinel              # TUI
-neo-sentinel --check      # diagnóstico + estado dos serviços
-neo-sentinel --pair       # emparelhar um node novo
-neo-sentinel --version
-```
-
-O instalador também aceita:
-
-```bash
-bash install.sh --check      # diagnostica a instalação
-bash install.sh --update     # actualiza o código (preserva a config)
-bash install.sh --uninstall  # remove
-```
-
-Actualizar sem voltar a executar o instalador completo:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/DarkHareVideoGames/NEO-SENTINEL/main/install.sh | bash -s -- --update
-```
-
-## Onde fica instalado
-
-```
-~/.neo-x1/sentinel/
-├── .venv/              # ambiente Python isolado
-├── neo_sentinel.py
-├── sentinel/           # código do SENTINEL
-├── config.json         # a SUA configuração (nunca é sobrescrita)
-└── config.example.json
-
-~/.local/bin/neo-sentinel   # o comando
-```
-
-O `config.json` é **preservado** em todas as instalações e actualizações.
-
-## Características
-
-- Só depende de `textual` (mais a biblioteca standard)
-- **Não** usa `psutil`, `nvidia-smi`, PowerShell nem APIs do Windows —
-  por isso o mesmo código corre no telemóvel, num servidor Linux e num PC
-- Todos os dados do node chegam pela API do LINK
-- Config e credenciais com permissão `600`, nunca versionadas
-- Sem port scanning e sem discovery automático
-
-## Diagnóstico
-
-```bash
-neo-sentinel --check
-```
-
-Mostra a versão, os nodes configurados, e para cada node se o LINK responde
-e qual o estado dos serviços.
-
-| Sintoma | Solução |
-|---|---|
-| `neo-sentinel: command not found` | `source ~/.bashrc` ou reabra o Termux |
-| Node aparece `OFFLINE` | app Tailscale ligada? LINK a correr? porta certa? |
-| `HTTP 401` | a credencial não bate com a do LINK |
-| A tela dorme | `termux-wake-lock` |
+O SENTINEL só depende de `textual`. O LINK só depende de `psutil`. O resto vem
+da biblioteca standard, por isso o mesmo código corre em qualquer lado.
 
 ## Segurança
 
-- O SENTINEL só **observa** por omissão; não controla nada.
-- Tokens e credenciais nunca são impressos no terminal.
-- Todo o tráfego vai pela Tailscale, que já vem cifrado (WireGuard).
-- A credencial do pairing é guardada só como hash no LINK: ler o ficheiro
-  não dá acesso.
+Algumas notas, sem promessas que não possa cumprir:
 
-## Desinstalar
+- O SENTINEL é de **monitorização**. Por omissão não arranca nem para nada;
+  isso depende de uma opção no LINK que está desligada.
+- O LINK escuta apenas em `127.0.0.1` por omissão. `--host 0.0.0.0` deixa-o
+  acessível em todas as interfaces, incluindo a rede local.
+- O pairing estabelece uma credencial entre o cliente e o node. Quem
+  configurou o LINK é que decide se aceita, e pode desligar o controlo a
+  qualquer momento.
+- O tráfego é pensado para funcionar dentro de uma tailnet, onde já vai
+  cifrado.
+- **Não publique tokens nem credenciais.** Vão para ficheiros locais que não
+  devem ser versionados.
 
-```bash
-bash install.sh --uninstall
-rm -rf ~/.neo-x1
-rm ~/.local/bin/neo-sentinel
-```
+## Notas
 
-## Sobre este repositório
-
-Este repo contém **apenas o runtime do SENTINEL** — o que precisa de ser
-instalado fora da máquina. O código completo de desenvolvimento (incluindo o
-NEO//LINK) vive no repositório privado `DNAI-WORKSTATION-NEOX1`.
+Os dois instaladores aceitam `--check` (diagnóstico), `--update` (preserva a
+configuração) e `--uninstall`. Mais detalhe em cada directório.
 
 ## Licença
 
-MIT. Ver [LICENSE](LICENSE).
+MIT.

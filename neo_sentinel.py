@@ -118,7 +118,7 @@ def run_pairing(config: SentinelConfig, args: argparse.Namespace) -> int:
     url = args.url
     if not url:
         try:
-            url = input("  LINK URL (ex.: http://100.69.16.82:8765): ").strip()
+            url = input("  LINK URL (ex.: http://master:8765): ").strip()
         except (EOFError, KeyboardInterrupt):
             print()
             return 1
