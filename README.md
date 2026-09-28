@@ -4,8 +4,9 @@ Criei o NEO//SENTINEL para ter uma forma simples de acompanhar as máquinas
 que fazem parte da minha infraestrutura, sem precisar de abrir uma página web
 nem de estar sentado ao pé de cada máquina.
 
-É um cliente de linha de comando. Corre num telemóvel com Termux, num portátil
-com Linux, ou num PC com Windows, e mostra o estado de cada node num ecrã só.
+É um cliente de linha de comando, com interface de terminal. Corre num
+telemóvel com Termux, num portátil com Linux, num Mac, ou num PC com Windows
+(Git Bash ou WSL), e mostra o estado de cada node num ecrã só.
 
 Este repositório tem as duas peças do sistema:
 
@@ -66,17 +67,58 @@ curl -fsSL https://raw.githubusercontent.com/DarkHareVideoGames/NEO-SENTINEL/mai
 
 Instala em `~/.neo-x1/sentinel/` e cria o comando `neo-sentinel`.
 
+Precisa de **Python 3.9+**. Não precisa de `git`, de Docker, nem de root.
+
+> O SENTINEL instala-se por shell. Num PC com Windows usa o
+> [Git Bash](https://gitforwindows.org/) ou o WSL — a interface é uma TUI de
+> terminal, por isso precisa de um terminal Unix para correr.
+
 ### O LINK (cada node a monitorizar)
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/DarkHareVideoGames/NEO-SENTINEL/main/link/install.sh | bash -- --name MEU-NODE
+O LINK tem instaladores nativos por plataforma.
+
+**Windows 10/11 — PowerShell.** Não precisa de Bash, WSL, Git ou
+Chocolatey:
+
+```powershell
+irm https://raw.githubusercontent.com/DarkHareVideoGames/NEO-SENTINEL/main/link/install.ps1 -OutFile install.ps1
+.\install.ps1 -Name MEU-NODE
 ```
 
-Instala em `~/.neo-x1/link/` e cria o comando `neo-link`. Depois é preciso
-descrever os serviços dessa máquina no `config.json`.
+**Linux, macOS e Termux — shell:**
 
-Nenhum dos dois precisa de `git`, de Docker, ou de root. E não precisam um do
-outro para instalar — o SENTINEL nunca vê o código do LINK.
+```bash
+curl -fsSL https://raw.githubusercontent.com/DarkHareVideoGames/NEO-SENTINEL/main/link/install.sh | bash -s -- --name MEU-NODE
+```
+
+Instala em `~/.neo-x1/link` (ou `%USERPROFILE%\.neo-x1\link`) e cria o
+comando `neo-link`. Depois é preciso descrever os serviços dessa máquina no
+`config.json`.
+
+Em qualquer plataforma podes também descarregar primeiro e correr depois —
+é a forma recomendada, porque permite rever o script antes de o executar:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/DarkHareVideoGames/NEO-SENTINEL/main/link/install.sh -o install.sh
+less install.sh
+bash install.sh --name MEU-NODE
+```
+
+`--name` é opcional: sem ele, o node fica com o hostname da máquina.
+
+### Onde corre o quê
+
+| Plataforma | SENTINEL | LINK |
+|---|---|---|
+| Windows 10/11 | Git Bash ou WSL | **PowerShell nativo** |
+| Linux | `install.sh` | `install.sh` |
+| macOS | `install.sh` | `install.sh` |
+| Termux / Android | `install.sh` | `install.sh` |
+
+Os dois não precisam um do outro para instalar — o SENTINEL nunca vê o
+código do LINK. Mais detalhe em [`link/README.md`](link/README.md).
+
+Nenhum dos dois precisa de `git`, de Docker, ou de root.
 
 ## Primeiros passos
 
@@ -124,8 +166,6 @@ continua associada ao mesmo `node_id`.
 Se colar uma URL onde se pede o IP, o SENTINEL recusa e explica o formato
 esperado, em vez de tentar adivinhar o endereço.
 
-## Pairing
-
 Não gosto de pedir a alguém — nem a mim próprio — que copie tokens de um ecrã
 para o outro. Por isso o pairing é a forma normal de adicionar um node.
 
@@ -165,8 +205,9 @@ Algumas notas, sem promessas que não possa cumprir:
 
 ## Notas
 
-Os dois instaladores aceitam `--check` (diagnóstico), `--update` (preserva a
-configuração) e `--uninstall`. Mais detalhe em cada directório.
+Os instaladores aceitam `--check` (diagnóstico), `--update` (preserva a
+configuração) e `--uninstall`. Em PowerShell são `-Check`, `-Update` e
+`-Uninstall`. Mais detalhe em cada directório.
 
 ## Licença
 
