@@ -1,6 +1,6 @@
 {
   "node": {
-    "name": "NODE-01"
+    "name": "EXEMPLO"
   },
   "server": {
     "host": "127.0.0.1",
@@ -12,18 +12,18 @@
     {
       "type": "comfyui",
       "name": "ComfyUI",
-      "enabled": true,
-      "path": "C:\\ComfyUI",
-      "python": "C:\\ComfyUI\\.venv\\Scripts\\python.exe",
+      "enabled": false,
+      "path": "",
+      "python": "",
       "port": 8188,
       "api_path": "/system_stats",
-      "process_match": ["C:\\ComfyUI"],
+      "process_match": [],
       "args": ["--enable-manager", "--listen", "0.0.0.0"]
     },
     {
       "type": "ollama",
       "name": "Ollama",
-      "enabled": true,
+      "enabled": false,
       "port": 11434,
       "api_path": "/api/tags",
       "process_match": ["ollama", "serve"]
