@@ -1,0 +1,12 @@
+{
+  "refresh_seconds": 2.0,
+  "timeout_seconds": 5.0,
+  "nodes": [
+    {
+      "name": "MASTER",
+      "url": "http://127.0.0.1:8765",
+      "token": null,
+      "enabled": true
+    }
+  ]
+}

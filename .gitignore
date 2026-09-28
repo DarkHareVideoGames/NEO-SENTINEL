@@ -1,0 +1,16 @@
+# Configuração local — nunca versionada (pode conter credenciais)
+config.json
+*.credentials.json
+credentials.json
+
+# Ambiente Python
+.venv/
+venv/
+
+# Cache
+__pycache__/
+*.pyc
+
+# Sistema
+.DS_Store
+Thumbs.db

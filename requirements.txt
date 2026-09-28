@@ -1,0 +1,5 @@
+# NEO//SENTINEL — dependências
+# O SENTINEL fala HTTP com urllib (stdlib) para poder correr no Termux/Android.
+# Não usa psutil nem qualquer API do Windows: o acesso às máquinas é por rede.
+
+textual>=0.80
