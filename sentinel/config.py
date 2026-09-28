@@ -2,6 +2,19 @@
 
 O SENTINEL conhece apenas: nome do node e endpoint. Nunca paths, processos
 nem comandos — isso é responsabilidade do LINK de cada máquina.
+
+Um node guarda a identidade canónica que o LINK lhe devolveu no pairing:
+
+    {
+      "node_id": "nx1-...",     # identidade técnica, estável
+      "name": "...",            # nome escolhido pelo utilizador
+      "hostname": "...",        # hostname real, descoberto pelo LINK
+      "tailscale_ip": "100...." # como voltar a falar com o node
+    }
+
+O `url` continua a ser guardado, para compatibilidade com configurações
+antigas e com o resto do código. É derivado do IP, mas continua a ser um
+campo válido — nenhuma configuração existente se perde.
 """
 
 from __future__ import annotations
@@ -22,6 +35,11 @@ class NodeConfig:
     url: str
     token: str | None = None
     enabled: bool = True
+    # Identidade canónica, devolvida pelo LINK no pairing. Opcional para
+    #configs escritas antes de a identidade existir.
+    node_id: str | None = None
+    hostname: str | None = None
+    tailscale_ip: str | None = None
 
     @classmethod
     def from_dict(cls, raw: dict[str, Any]) -> "NodeConfig":
@@ -30,7 +48,16 @@ class NodeConfig:
         if not name:
             raise ValueError("cada node precisa de 'name'")
         if not url:
-            raise ValueError(f"node {name!r} precisa de 'url' (ex.: http://host:8765)")
+            # Config antigo sem 'url' mas com IP: derivamos o endpoint.
+            tailscale_ip = str(raw.get("tailscale_ip") or "").strip()
+            if tailscale_ip:
+                from .pairing import link_endpoint
+
+                url = link_endpoint(tailscale_ip)
+            else:
+                raise ValueError(
+                    f"node {name!r} precisa de 'url' (ex.: http://host:8765)"
+                )
         if not url.startswith(("http://", "https://")):
             raise ValueError(f"node {name!r}: url deve começar por http:// ou https://")
         return cls(
@@ -38,10 +65,31 @@ class NodeConfig:
             url=url,
             token=raw.get("token") or None,
             enabled=bool(raw.get("enabled", True)),
+            node_id=raw.get("node_id") or None,
+            hostname=raw.get("hostname") or None,
+            tailscale_ip=raw.get("tailscale_ip") or None,
         )
 
     def to_dict(self) -> dict[str, Any]:
-        return {"name": self.name, "url": self.url, "token": self.token, "enabled": self.enabled}
+        """Serializa o node.
+
+        A `url` continua presente — é o que o resto do sistema consome. Os
+        campos da identidade só são escritos quando existem, para não sujar
+        as configs.
+        """
+        data: dict[str, Any] = {
+            "name": self.name,
+            "url": self.url,
+            "token": self.token,
+            "enabled": self.enabled,
+        }
+        if self.node_id:
+            data["node_id"] = self.node_id
+        if self.hostname:
+            data["hostname"] = self.hostname
+        if self.tailscale_ip:
+            data["tailscale_ip"] = self.tailscale_ip
+        return data
 
 
 @dataclass
@@ -94,9 +142,20 @@ class SentinelConfig:
         return config_path
 
     def upsert_node(self, node: NodeConfig) -> None:
-        """Adiciona ou substitui um node pelo nome, sem duplicar."""
+        """Adiciona ou substitui um node.
+
+        Preferimos a identidade técnica (`node_id`) quando existe, para
+        renomear uma estação não criar um node novo. O nome serve apenas de
+        recurso para nodes antigos, que ainda não têm `node_id`.
+        """
         for index, existing in enumerate(self.nodes):
-            if existing.name.lower() == node.name.lower():
+            if existing.node_id and node.node_id:
+                if existing.node_id == node.node_id:
+                    # Mesmo node: a credencial e o IP são actualizados, o
+                    # node_id permanece igual e o nome pode mudar.
+                    self.nodes[index] = node
+                    return
+            elif existing.name.lower() == node.name.lower():
                 self.nodes[index] = node
                 return
         self.nodes.append(node)

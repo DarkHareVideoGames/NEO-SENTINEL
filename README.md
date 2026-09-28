@@ -85,12 +85,44 @@ outro para instalar — o SENTINEL nunca vê o código do LINK.
 neo-link --pair --host 0.0.0.0     # mostra um código temporário
 
 # na máquina de onde observo
-neo-sentinel --pair                # introduzo a URL e o código
+neo-sentinel --pair                # peço o IP, o código e o nome
 neo-sentinel --check               # confirmo que está tudo a responder
 neo-sentinel                       # abro a interface
 ```
 
 Na interface, `↑` e `↓` mudam de node, `r` força uma actualização, `q` sai.
+
+## Pairing
+
+O pairing pede três coisas, e nada mais:
+
+```text
+NEO//SENTINEL — PAIR NEW NODE
+
+IP Tailscale:
+> 100.69.16.82
+
+Código:
+> XXXX-XXXX
+
+Nome da estação:
+> AI-STATION
+```
+
+O IP Tailscale vem do `tailscale ip` no node. O código é o que o
+`neo-link --pair` está a mostrar. O nome da estação é livre; se o deixar
+vazio, o nome passa a ser o hostname real do node.
+
+As portas e o esquema HTTP são detalhes internos do SENTINEL — não se escrevem,
+não se veem e não se memorizam. O SENTINEL calcula o endpoint a partir do IP.
+
+Cada node tem uma **identidade técnica** (`node_id`) gerada pelo LINK, que
+sobrevive a reinícios e a renomeações. O `node_id` nunca é derivado do nome
+nem do IP: mudar o nome da estação não cria um node novo, e a credencial
+continua associada ao mesmo `node_id`.
+
+Se colar uma URL onde se pede o IP, o SENTINEL recusa e explica o formato
+esperado, em vez de tentar adivinhar o endereço.
 
 ## Pairing
 

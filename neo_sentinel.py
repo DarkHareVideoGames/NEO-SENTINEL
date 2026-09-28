@@ -52,7 +52,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--url",
         default=None,
-        help="URL do LINK, para --pair (ex.: http://host:8765)",
+        help="endereço do node para --pair (aceita IP Tailscale ou URL)",
     )
     parser.add_argument(
         "--timeout",
@@ -105,72 +105,132 @@ def check_links(config: SentinelConfig, found: list) -> int:
     return 1 if problems else 0
 
 
-def run_pairing(config: SentinelConfig, args: argparse.Namespace) -> int:
-    """Emparelha um node e grava a credencial na configuração existente."""
-    from sentinel.pairing import PairingError, check_reachable, normalise_url, pair
-
-    print()
-    print(f"  {APP_NAME}")
-    print()
-    print("  Pair new node")
-    print()
-
-    url = args.url
-    if not url:
-        try:
-            url = input("  LINK URL (ex.: http://master:8765): ").strip()
-        except (EOFError, KeyboardInterrupt):
-            print()
-            return 1
-    if not url:
-        print("  URL em falta.")
-        return 2
-    url = normalise_url(url)
-
-    # 1) O LINK responde?
+def ask(prompt: str) -> str:
+    """Lê uma linha do utilizador. Devolve '' em EOF/interrupção."""
     try:
-        info = check_reachable(url, timeout=args.timeout)
-        print(f"  [ok] LINK reachable ({info.get('agent', 'NEO//LINK')})")
-    except PairingError as exc:
-        print(f"  [erro] {exc}")
-        return 1
-
-    # 2) O codigo temporario, gerado no LINK.
-    print()
-    try:
-        code = input("  Pairing code (ex.: 7K4M-92PX): ").strip()
+        return input(prompt).strip()
     except (EOFError, KeyboardInterrupt):
         print()
+        return ""
+
+
+def run_pairing(config: SentinelConfig, args: argparse.Namespace) -> int:
+    """Emparelha um node a partir de três respostas simples.
+
+    O utilizador só fornece: IP Tailscale, código e nome da estação. As
+    portas e o esquema HTTP são detalhes internos, resolvidos aqui e nunca
+    mostrados.
+    """
+    from sentinel.pairing import (
+        InvalidTailscaleIP,
+        PairingError,
+        check_pairing_open,
+        link_endpoint,
+        pair_by_ip,
+        validate_tailscale_ip,
+    )
+
+    print()
+    print(f"  {APP_NAME} — PAIR NEW NODE")
+    print()
+
+    # 1) IP Tailscale. Aceita o IP puro; recusa URLs com uma mensagem clara.
+    legacy_url = ""
+    if args.url:
+        # Compatibilidade: --url já acceptava uma URL completa. Se for uma
+        # URL, derivamos o IP e seguimos pelo mesmo caminho.
+        text = args.url.strip()
+        if text.startswith(("http://", "https://")):
+            from urllib.parse import urlparse
+
+            legacy_url = text
+            text = urlparse(text).hostname or ""
+        try:
+            tailscale_ip = validate_tailscale_ip(text)
+        except InvalidTailscaleIP:
+            from sentinel.pairing import TAILSCALE_EXAMPLE
+
+            print("  [erro] Invalid Tailscale IP.")
+            print("         Enter only the Tailscale IP, for example:")
+            print(f"         {TAILSCALE_EXAMPLE}")
+            return 2
+    else:
+        while True:
+            raw = ask("\n  IP Tailscale:\n  > ")
+            if not raw:
+                print("  Cancelado.")
+                return 1
+            try:
+                tailscale_ip = validate_tailscale_ip(raw)
+                break
+            except InvalidTailscaleIP as exc:
+                print(f"\n  [erro] {exc}\n")
+
+    # 2) O node tem o pairing aberto?
+    print()
+    print("  Connecting to Tailscale node...")
+    try:
+        check_pairing_open(tailscale_ip, timeout=args.timeout)
+    except PairingError as exc:
+        print(f"  [erro] {exc}")
+        print()
+        print("  No node, start the pairing with:  neo-link --pair")
         return 1
+    print("  [ok] LINK reachable")
+
+    # 3) O código temporário, gerado no node.
+    code = ask("\n  Código:\n  > ")
     if not code:
-        print("  Codigo em falta.")
+        print("  [erro] O código é obrigatório.")
         return 2
 
-    # 3) Trocar o codigo por uma credencial permanente.
+    # 4) O nome da estação. Opcional: vazio significa usar o hostname.
+    station = ask("\n  Nome da estação:\n  > ")
+
+    # 5) Trocar o código por uma credencial permanente.
     print()
-    print("  Connecting...")
+    print("  Pairing...")
     try:
-        result = pair(url, code, timeout=args.timeout)
+        if legacy_url:
+            from sentinel.pairing import pair as legacy_pair
+
+            result = legacy_pair(
+                legacy_url, code, name=station or None, timeout=args.timeout
+            )
+        else:
+            result = pair_by_ip(
+                tailscale_ip, code, name=station or None, timeout=args.timeout
+            )
     except PairingError as exc:
         print(f"  [erro] {exc}")
         return 1
 
     print("  [ok] Pairing accepted")
-    print(f"  [ok] Node identity received ({result.name})")
+    print("  [ok] Station identity received")
+    if not result.node_id:
+        print("  [aviso] o LINK nao devolveu node_id")
 
-    # 4) Guardar na configuracao existente (formato actual: campo 'token').
+    # 6) Guardar. A identidade vem do LINK; o nome e o que o utilizador escreveu.
     node = NodeConfig(
         name=result.name,
-        url=url,
+        url=legacy_url or link_endpoint(tailscale_ip),
         token=result.credential,
         enabled=True,
+        node_id=result.node_id or None,
+        hostname=result.hostname or None,
+        tailscale_ip=tailscale_ip or None,
     )
     config.upsert_node(node)
     saved = config.save(args.config)
     print("  [ok] Credential stored")
+
     print()
-    print(f"  {result.name} [online]")
-    print(f"  config: {saved}")
+    print(f"  Station:  {node.name}")
+    if node.hostname:
+        print(f"  Hostname: {node.hostname}")
+    if node.node_id:
+        print(f"  Node ID:  {node.node_id}")
+    print(f"  config:   {saved}")
     print()
     return 0
 

@@ -105,12 +105,19 @@ class PairingServer:
                 outer.store.add(credential, outer.identity.node_id)
                 outer.paired = True
 
+                # O nome da estação é apenas um rótulo. A identidade técnica
+                # continua a ser a do node_id, gerada aqui e persistente.
+                station = str(data.get("name") or "").strip()[:64]
+                node = outer.identity.to_dict()
+                if station:
+                    node["name"] = station
+
                 # A credencial vai no corpo da resposta — nunca na URL.
                 self._send(
                     {
                         "paired": True,
                         "credential": credential,
-                        "node": outer.identity.to_dict(),
+                        "node": node,
                         "access": "monitor",
                     },
                     HTTPStatus.OK,
